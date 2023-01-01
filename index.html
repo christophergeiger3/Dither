@@ -1,0 +1,177 @@
+<body></body>
+<script>
+  const input = document.createElement("input");
+  input.type = "file";
+
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+
+    const canvas = document.createElement("canvas");
+    canvas.id = "canvas";
+
+    const context = canvas.getContext("2d");
+
+    reader.onload = () => {
+      const image = new Image();
+      image.src = reader.result;
+
+      image.onload = () => {
+        canvas.width = image.width;
+        canvas.height = image.height;
+
+        context.drawImage(image, 0, 0);
+      };
+    };
+
+    const loadPixelsAndDither = (colorBits) => {
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+
+      const isIndexInCanvas = (index) => {
+        return index >= 0 && index < canvas.width * canvas.height * 4;
+      };
+
+      const clamp = (value, min, max) => {
+        return Math.min(Math.max(value, min), max);
+      };
+
+      const findClosestPaletteColor = (red, green, blue) => {
+        let maskBit = 0xff;
+
+        maskBit = maskBit << colorBits;
+
+        red = red & maskBit;
+        green = green & maskBit;
+        blue = blue & maskBit;
+
+        // red = clamp(Math.round(red) * 255, 0, 255);
+        // green = clamp(Math.round(green) * 255, 0, 255);
+        // blue = clamp(Math.round(blue) * 255, 0, 255);
+
+        // red = red << 1;
+        // green = green << 1;
+        // blue = blue << 1;
+
+        return [red, green, blue];
+      };
+
+      // https://en.wikipedia.org/wiki/Floyd%E2%80%93Steinberg_dithering
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          const index = (y * canvas.width + x) * 4;
+
+          const neighborOne = (y * canvas.width + x + 1) * 4;
+          const neighborTwo = ((y + 1) * canvas.width + x - 1) * 4;
+          const neighborThree = ((y + 1) * canvas.width + x) * 4;
+          const neighborFour = ((y + 1) * canvas.width + x + 1) * 4;
+
+          const [newPixelRed, newPixelGreen, newPixelBlue] =
+            findClosestPaletteColor(
+              pixels[index],
+              pixels[index + 1],
+              pixels[index + 2]
+            );
+
+          const quantErrorRed = pixels[index] - newPixelRed;
+          const quantErrorGreen = pixels[index + 1] - newPixelGreen;
+          const quantErrorBlue = pixels[index + 2] - newPixelBlue;
+
+          pixels[index] = newPixelRed;
+          pixels[index + 1] = newPixelGreen;
+          pixels[index + 2] = newPixelBlue;
+
+          pixels[neighborOne] = clamp(
+            pixels[neighborOne] + (quantErrorRed * 7) / 16,
+            0,
+            255
+          );
+          pixels[neighborOne + 1] = clamp(
+            pixels[neighborOne + 1] + (quantErrorGreen * 7) / 16,
+            0,
+            255
+          );
+          pixels[neighborOne + 2] = clamp(
+            pixels[neighborOne + 2] + (quantErrorBlue * 7) / 16,
+            0,
+            255
+          );
+
+          pixels[neighborTwo] = clamp(
+            pixels[neighborTwo] + (quantErrorRed * 3) / 16,
+            0,
+            255
+          );
+          pixels[neighborTwo + 1] = clamp(
+            pixels[neighborTwo + 1] + (quantErrorGreen * 3) / 16,
+            0,
+            255
+          );
+          pixels[neighborTwo + 2] = clamp(
+            pixels[neighborTwo + 2] + (quantErrorBlue * 3) / 16,
+            0,
+            255
+          );
+
+          pixels[neighborThree] = clamp(
+            pixels[neighborThree] + (quantErrorRed * 5) / 16,
+            0,
+            255
+          );
+          pixels[neighborThree + 1] = clamp(
+            pixels[neighborThree + 1] + (quantErrorGreen * 5) / 16,
+            0,
+            255
+          );
+          pixels[neighborThree + 2] = clamp(
+            pixels[neighborThree + 2] + (quantErrorBlue * 5) / 16,
+            0,
+            255
+          );
+
+          pixels[neighborFour] = clamp(
+            pixels[neighborFour] + (quantErrorRed * 1) / 16,
+            0,
+            255
+          );
+          pixels[neighborFour + 1] = clamp(
+            pixels[neighborFour + 1] + (quantErrorGreen * 1) / 16,
+            0,
+            255
+          );
+          pixels[neighborFour + 2] = clamp(
+            pixels[neighborFour + 2] + (quantErrorBlue * 1) / 16,
+            0,
+            255
+          );
+        }
+      }
+
+      // alert("Dithering complete!");
+      context.putImageData(imageData, 0, 0);
+    };
+
+    const colorBitsInput = document.createElement("input");
+    colorBitsInput.id = "colorBits";
+    colorBitsInput.type = "number";
+    colorBitsInput.value = 6;
+    colorBitsInput.min = 1;
+    colorBitsInput.max = 7;
+    colorBitsInput.step = 1;
+
+    const ditherButton = document.createElement("button");
+    ditherButton.id = "ditherButton";
+    ditherButton.textContent = "Dither";
+    ditherButton.addEventListener("click", () =>
+      loadPixelsAndDither(colorBitsInput.value)
+    );
+
+    document.body.appendChild(colorBitsInput);
+    document.body.appendChild(ditherButton);
+    document.body.appendChild(canvas);
+  });
+
+  document.body.appendChild(input);
+</script>
